@@ -1,4 +1,4 @@
-##                                          Optimal Shop Location
+##                                          Optimal Facility Location 
 
 Some time ago, we went shopping. After discussing with a furniture and decor shop owner their reason for closing their shop and putting their 
 remaining inventory on sale, we found that the shop owner believed they'd not picked the best or most optimal location for their shop. 
