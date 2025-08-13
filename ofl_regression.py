@@ -81,7 +81,7 @@ def get_median_income_by_point(lat, lon, radius):
         raise RuntimeError("CENSUS_API_KEY is not set. Put your key in Streamlit secrets or set variable.")
     # FCC to get block FIPS
     fcc_url = f"https://geo.fcc.gov/api/census/block/find?latitude={lat}&longitude={lon}&format=json"
-    r = requests.get(fcc_url, timeout=10)
+    r = requests.get(fcc_url, timeout=50)
     r.raise_for_status()
     j = r.json()
     block_fips = j.get("Block", {}).get("FIPS")
@@ -99,7 +99,7 @@ def get_median_income_by_point(lat, lon, radius):
         "https://api.census.gov/data/2022/acs/acs5"
         f"?get=B19013_001E&for=tract:{tract_fips}&in=state:{state_fips}%20county:{county_fips}&key={CENSUS_API_KEY}"
     )
-    r2 = requests.get(acs_url, headers=headers, timeout=10)
+    r2 = requests.get(acs_url, headers=headers, timeout=50)
     r2.raise_for_status()
     arr = r2.json()
     if len(arr) < 2:
@@ -212,7 +212,7 @@ def revenue_estimation(lat, lon):
     # TODO: Replace with your real revenue estimation logic
     print(f'Revenue estimation ...')
     return (get_population_density_gee(lat, lon, 500) * 2 +
-            get_osm_poi_density(lat, lon, 500) * 100 +
+            # get_osm_poi_density(lat, lon, 500) * 100 +
             get_fsq_count(lat, lon, 500) * 50 +
             get_median_income_by_point(lat, lon, 500) * 0.01)
 
