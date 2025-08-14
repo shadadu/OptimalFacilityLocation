@@ -11,6 +11,9 @@ from shapely.geometry import Point
 from sklearn.linear_model import LinearRegression
 from math import radians, cos, sin, asin, sqrt
 import ee
+import time, requests
+
+
 ee.Authenticate()
 ee.Initialize(project='ee-shaddie77')
 
@@ -71,6 +74,19 @@ def get_osm_poi_density(lat, lon, radius):
     pois = ox.features_from_point((lat, lon), tags=tags, dist=radius)
     return len(pois)
 
+def get_fips_from_coords(lat, lon, retries=3, wait=5):
+    url = "https://geo.fcc.gov/api/census/block/find"
+    params = {"latitude": lat, "longitude": lon, "format": "json"}
+    for i in range(retries):
+        try:
+            r = requests.get(url, params=params, timeout=20)
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.HTTPError as e:
+            if r.status_code == 502 and i < retries - 1:
+                time.sleep(wait)
+                continue
+            raise
 
 # Placeholder for median income retrieval
 def get_median_income_by_point(lat, lon, radius):
@@ -80,10 +96,11 @@ def get_median_income_by_point(lat, lon, radius):
     if not CENSUS_API_KEY:
         raise RuntimeError("CENSUS_API_KEY is not set. Put your key in Streamlit secrets or set variable.")
     # FCC to get block FIPS
-    fcc_url = f"https://geo.fcc.gov/api/census/block/find?latitude={lat}&longitude={lon}&format=json"
-    r = requests.get(fcc_url, timeout=50)
-    r.raise_for_status()
-    j = r.json()
+    # fcc_url = f"https://geo.fcc.gov/api/census/block/find?latitude={lat}&longitude={lon}&format=json"
+    # r = requests.get(fcc_url, timeout=50)
+    # r.raise_for_status()
+    # # j = r.json()
+    j = get_fips_from_coords(lat, lon, retries=3, wait=5)
     block_fips = j.get("Block", {}).get("FIPS")
     if not block_fips:
         return None
@@ -213,8 +230,9 @@ def revenue_estimation(lat, lon):
     print(f'Revenue estimation ...')
     return (get_population_density_gee(lat, lon, 500) * 2 +
             # get_osm_poi_density(lat, lon, 500) * 100 +
-            get_fsq_count(lat, lon, 500) * 50 +
-            get_median_income_by_point(lat, lon, 500) * 0.01)
+            get_fsq_count(lat, lon, 500) * 50 #+
+            # get_median_income_by_point(lat, lon, 500) * 0.01
+            )
 
 # Step 3: Get candidate facility locations
 candidates = generate_city_candidate_locations(city_name, radius_c)
