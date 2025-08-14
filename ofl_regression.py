@@ -9,9 +9,18 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import Point
 from sklearn.linear_model import LinearRegression
+import statsmodels.api as sm
+from geopy.geocoders import Nominatim
+import altair as alt
+from shapely.geometry import Point
+import geopandas as gpd
 from math import radians, cos, sin, asin, sqrt
 import ee
 import time, requests
+import os
+from io import BytesIO
+import zipfile
+import tempfile
 
 
 ee.Authenticate()
@@ -96,10 +105,6 @@ def get_median_income_by_point(lat, lon, radius):
     if not CENSUS_API_KEY:
         raise RuntimeError("CENSUS_API_KEY is not set. Put your key in Streamlit secrets or set variable.")
     # FCC to get block FIPS
-    # fcc_url = f"https://geo.fcc.gov/api/census/block/find?latitude={lat}&longitude={lon}&format=json"
-    # r = requests.get(fcc_url, timeout=50)
-    # r.raise_for_status()
-    # # j = r.json()
     j = get_fips_from_coords(lat, lon, retries=3, wait=5)
     block_fips = j.get("Block", {}).get("FIPS")
     if not block_fips:
@@ -126,6 +131,76 @@ def get_median_income_by_point(lat, lon, radius):
         return float(val) if val not in (None, "", "null") else None
     except Exception:
         return None
+
+def load_tracts_from_hf(hf_url):
+    # Download ZIP into memory
+    r = requests.get(hf_url, timeout=30)
+    r.raise_for_status()
+    z = BytesIO(r.content)
+
+    # Extract to a temporary folder
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with zipfile.ZipFile(z) as zip_ref:
+            zip_ref.extractall(tmpdir)
+
+        # Find the .shp file inside the extracted contents
+        shp_file = [os.path.join(tmpdir, f) for f in os.listdir(tmpdir) if f.endswith(".shp")][0]
+
+        # Read shapefile into GeoDataFrame
+        tracts = gpd.read_file(shp_file).to_crs(epsg=4326)
+
+    return tracts
+
+def get_median_income_with_radius(lat, lon, radius_m=1000, census_api_key=CENSUS_API_KEY
+                                  , hf_url ="https://huggingface.co/datasets/shaddie/tiger-tracts/resolve/main/tl_2024_01_tract.zip"
+                                  ):
+    """
+    Calculates the weighted median income within a radius by:
+      1. Loading U.S. Census tract boundaries from a Hugging Face-hosted ZIP (in-memory).
+      2. Buffering a point and selecting intersecting tracts.
+      3. Fetching median-income and household counts via ACS API.
+      4. Returning weighted average income.
+    """
+    if not census_api_key:
+        raise ValueError("Census API key required")
+
+    tracts = load_tracts_from_hf(hf_url)
+
+    # 2. Create spatial buffer
+    buffer_deg = radius_m / 111_320.0
+    buffer_geom = Point(lon, lat).buffer(buffer_deg)
+    tracts_sel = tracts[tracts.geometry.intersects(buffer_geom)]
+    if tracts_sel.empty:
+        return None
+
+    # 3. Query ACS for each tract's median income & household count
+    incomes = []
+    weights = []
+    year = hf_url.split("_")[-2] if "2024" in hf_url else "2024"
+    for _, row in tracts_sel.iterrows():
+        s = row["STATEFP"]
+        c = row["COUNTYFP"]
+        t = row["TRACTCE"]
+        acs_url = (
+            f"https://api.census.gov/data/{year}/acs/acs5"
+            f"?get=B19013_001E,B11016_001E"
+            f"&for=tract:{t}&in=state:{s}%20county:{c}&key={census_api_key}"
+        )
+        r2 = requests.get(acs_url, timeout=30)
+        if r2.status_code != 200:
+            continue
+        arr = r2.json()
+        if len(arr) < 2 or any(val in (None, "", "null") for val in arr[1]):
+            continue
+        inc, hh = arr[1]
+        incomes.append(float(inc))
+        weights.append(float(hh))
+
+    if not incomes:
+        return None
+
+    # 4. Weighted average
+    return sum(i * w for i, w in zip(incomes, weights)) / sum(weights)
 
 
 # Population density via GEE placeholder
@@ -187,14 +262,15 @@ def build_features_for_location(lat, lon, radius_m, cr):
         pop = get_population_density_gee(lat_i, lon_i, cr)
         # osm_poi = get_osm_poi_density(lat_i, lon_i, cr)
         fsq_poi = get_fsq_count(lat_i, lon_i, cr)
-        income = get_median_income_by_point(lat_i, lon_i, cr)
+        # income = get_median_income_by_point(lat_i, lon_i, cr)
+        income = get_median_income_with_radius(lat, lon)
         features.append({
             "lat": lat_i,
             "lon": lon_i,
             "population_density": pop,
             # "osm_poi_density": osm_poi,
             "fsq_poi_count": fsq_poi,
-            "median_income": income
+            # "median_income": income
         })
     return pd.DataFrame(features)
 
