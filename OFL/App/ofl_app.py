@@ -70,7 +70,7 @@ if submitted:
         st.error(f"Geocoding failed: {e}")
         st.stop()
 
-    with st.spinner("Computing predictors..."):
+    with st.spinner("Computing Predictors..."):
         pop_density = get_population_density_gee(lat, lon, radius_m)
         poi_density = get_osm_poi_density(lat, lon, radius_m)
         median_income = get_median_income_by_point(lat, lon, radius_m)
