@@ -3,6 +3,8 @@ from OFL.Predictors.Categories import get_osm_category, get_foursquare_category
 from OFL.Helpers import get_osm_poi_density, get_population_density_gee, get_fips_from_coords, snap_to_nearest_town
 from shapely.geometry import Point
 from math import radians, cos, sin, asin, sqrt
+from geopy.geocoders import Nominatim
+import time
 
 import streamlit as st
 import duckdb
@@ -193,16 +195,8 @@ def category_with_fallback(lat, lon, fetch_fn, radii=[200, 500, 1000, 2000], del
 
     return "Unknown"
 
-from geopy.geocoders import Nominatim
-import time
 
-geolocator = Nominatim(user_agent="geo_fallback")
-
-
-
-
-
-def build_features_for_location(lat, lon, radius_m, cr):
+def build_features_for_location(lat, lon, radius_m, cr, CENSUS_API_KEY):
     print(f'Building features for location ...')
     neighborhood_points = generate_circle_points(lat, lon, radius_m, cr)
     print(f'Number of neighborhood points {len(neighborhood_points)}')
@@ -212,7 +206,7 @@ def build_features_for_location(lat, lon, radius_m, cr):
         osm_poi = get_osm_poi_density(lat_i, lon_i, cr)
         fsq_poi = get_fsq_count(lat_i, lon_i, cr)
         # print(f'pop, fsq_poi {pop} {fsq_poi}')
-        income = get_median_income_by_point(lat_i, lon_i, cr)
+        income = get_median_income_by_point(lat_i, lon_i, cr, CENSUS_API_KEY)
         osm_cat = get_osm_category(lat, lon)
         fsq_cat = get_foursquare_category(lat, lon)
         print(f'Category osm: {osm_cat}, fsq: {fsq_cat}')

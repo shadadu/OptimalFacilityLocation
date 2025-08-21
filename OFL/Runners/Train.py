@@ -8,12 +8,12 @@ from OFL.Predictors.Categories import encode_location_categories
 from OFL.RevenueEstimation.RevenueEstimation import revenue_estimation
 
 
-def build_train_vars(candidates, radius_m, cr):
+def build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY):
     rows = []
     cnt_ = 0
     for lat, lon in candidates:
         # print(f'cnt_ {cnt_}')
-        X_df = build_features_for_location(lat, lon, radius_m, cr)
+        X_df = build_features_for_location(lat, lon, radius_m, cr, CENSUS_API_KEY)
         # Aggregate neighborhood features (mean as example)
         agg = X_df.mean(numeric_only=True).to_dict()
         Y = revenue_estimation
@@ -79,7 +79,7 @@ def main():
     print(f'size of candidates {len(candidates)}')
     print(f'element of candidates {candidates[0]}')
 
-    rows = build_train_vars(candidates, radius_m, cr)
+    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY)
 
     X, y = build_xy(rows)
 
