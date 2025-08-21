@@ -2,6 +2,7 @@ from sklearn.preprocessing import LabelEncoder
 import duckdb
 import osmnx as ox
 import time, requests
+from OFL.Helpers import snap_to_nearest_town
 
 def encode_location_categories(df):
     """
