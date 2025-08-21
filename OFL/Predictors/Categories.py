@@ -19,9 +19,11 @@ def encode_location_categories(df):
     # shared encoders so model always uses the same mapping
     _fsq_encoder = LabelEncoder()
     _osm_encoder = LabelEncoder()
-    _encoders_fitted = False
 
     global _encoders_fitted
+    _encoders_fitted = False
+
+
 
     # Ensure columns exist, replace None with "unknown"
     for col in ["location_category_foursquare", "location_category_osm"]:

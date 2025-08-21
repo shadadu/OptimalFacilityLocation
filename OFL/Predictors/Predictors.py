@@ -1,5 +1,5 @@
 import numpy as np
-from Categories import get_osm_category, get_foursquare_category
+from OFL.Predictors.Categories import get_osm_category, get_foursquare_category
 from OFL.Helpers import get_osm_poi_density, get_population_density_gee, get_fips_from_coords, snap_to_nearest_town
 from shapely.geometry import Point
 from math import radians, cos, sin, asin, sqrt
