@@ -1,10 +1,10 @@
 from sklearn.preprocessing import LabelEncoder
-import pandas as pd
+import duckdb
+import osmnx as ox
+import time, requests
+from geopy.geocoders import Nominatim
 
-# shared encoders so model always uses the same mapping
-_fsq_encoder = LabelEncoder()
-_osm_encoder = LabelEncoder()
-_encoders_fitted = False
+
 
 def encode_location_categories(df):
     """
@@ -16,6 +16,11 @@ def encode_location_categories(df):
         - location_category_osm
     Returns the same df with numeric-encoded columns added.
     """
+    # shared encoders so model always uses the same mapping
+    _fsq_encoder = LabelEncoder()
+    _osm_encoder = LabelEncoder()
+    _encoders_fitted = False
+
     global _encoders_fitted
 
     # Ensure columns exist, replace None with "unknown"
@@ -58,26 +63,27 @@ def category_with_fallback(lat, lon, fetch_fn, radii=[200, 500, 1000, 2000], del
         return category_with_fallback(town_lat, town_lon, fetch_fn, radii, delay)
 
     return "Unknown"
-def snap_to_nearest_town(lat, lon):
-    """
-    Snap (lat, lon) to nearest town/city center if available.
-    """
-    try:
-        location = geolocator.reverse((lat, lon), exactly_one=True, language="en")
-        if location and "town" in location.raw["address"]:
-            town = location.raw["address"]["town"]
-        elif location and "city" in location.raw["address"]:
-            town = location.raw["address"]["city"]
-        else:
-            return lat, lon  # no town/city info, return same coords
-
-        # Forward geocode the town name → town center coords
-        town_loc = geolocator.geocode(town)
-        if town_loc:
-            return town_loc.latitude, town_loc.longitude
-    except Exception as e:
-        print(f"Town fallback failed: {e}")
-    return lat, lon  # fallback to original point
+# def snap_to_nearest_town(lat, lon):
+#     """
+#     Snap (lat, lon) to nearest town/city center if available.
+#     """
+#     geolocator = Nominatim(user_agent="geo_fallback")
+#     try:
+#         location = geolocator.reverse((lat, lon), exactly_one=True, language="en")
+#         if location and "town" in location.raw["address"]:
+#             town = location.raw["address"]["town"]
+#         elif location and "city" in location.raw["address"]:
+#             town = location.raw["address"]["city"]
+#         else:
+#             return lat, lon  # no town/city info, return same coords
+#
+#         # Forward geocode the town name → town center coords
+#         town_loc = geolocator.geocode(town)
+#         if town_loc:
+#             return town_loc.latitude, town_loc.longitude
+#     except Exception as e:
+#         print(f"Town fallback failed: {e}")
+#     return lat, lon  # fallback to original point
 
 
 

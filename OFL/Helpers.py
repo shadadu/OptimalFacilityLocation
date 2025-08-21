@@ -1,3 +1,24 @@
+import streamlit as st
+import duckdb
+import requests
+import osmnx as ox
+import numpy as np
+import pandas as pd
+from shapely.geometry import Point
+from sklearn.linear_model import LinearRegression
+import statsmodels.api as sm
+from geopy.geocoders import Nominatim
+import altair as alt
+from shapely.geometry import Point
+import geopandas as gpd
+from math import radians, cos, sin, asin, sqrt
+import ee
+import time, requests
+import os
+from io import BytesIO
+import zipfile
+import tempfile
+
 
 def get_nearest_place_coords(lat, lon):
     """
@@ -122,3 +143,39 @@ def get_population_density_gee(lat, lon, radius_m, max_expand=3, expand_factor=2
 
     print("No population data found, even after fallback.")
     return 0
+
+def snap_to_nearest_town(lat, lon):
+    """
+    Snap (lat, lon) to nearest town/city center if available.
+    """
+    geolocator = Nominatim(user_agent="geo_fallback")
+    try:
+        location = geolocator.reverse((lat, lon), exactly_one=True, language="en")
+        if location and "town" in location.raw["address"]:
+            town = location.raw["address"]["town"]
+        elif location and "city" in location.raw["address"]:
+            town = location.raw["address"]["city"]
+        else:
+            return lat, lon  # no town/city info, return same coords
+
+        # Forward geocode the town name → town center coords
+        town_loc = geolocator.geocode(town)
+        if town_loc:
+            return town_loc.latitude, town_loc.longitude
+    except Exception as e:
+        print(f"Town fallback failed: {e}")
+    return lat, lon  # fallback to original point
+
+def get_fips_from_coords(lat, lon, retries=3, wait=5):
+    url = "https://geo.fcc.gov/api/census/block/find"
+    params = {"latitude": lat, "longitude": lon, "format": "json"}
+    for i in range(retries):
+        try:
+            r = requests.get(url, params=params, timeout=20)
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.HTTPError as e:
+            if r.status_code == 502 and i < retries - 1:
+                time.sleep(wait)
+                continue
+            raise
