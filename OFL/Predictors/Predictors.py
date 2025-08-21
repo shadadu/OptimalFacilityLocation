@@ -1,31 +1,12 @@
 import numpy as np
 from OFL.Predictors.Categories import get_osm_category, get_foursquare_category
 from OFL.Helpers import get_osm_poi_density, get_population_density_gee, get_fips_from_coords, snap_to_nearest_town
-from shapely.geometry import Point
-from math import radians, cos, sin, asin, sqrt
-from geopy.geocoders import Nominatim
-import time
-
-import streamlit as st
 import duckdb
-import requests
 import osmnx as ox
-import numpy as np
 import pandas as pd
 from shapely.geometry import Point
-from sklearn.linear_model import LinearRegression
-import statsmodels.api as sm
-from geopy.geocoders import Nominatim
-import altair as alt
-from shapely.geometry import Point
-import geopandas as gpd
 from math import radians, cos, sin, asin, sqrt
-import ee
 import time, requests
-import os
-from io import BytesIO
-import zipfile
-import tempfile
 
 def generate_city_candidate_locations(location_name, radius_c):
     # Use OSMnx to get city polygon

@@ -2,9 +2,6 @@ from sklearn.preprocessing import LabelEncoder
 import duckdb
 import osmnx as ox
 import time, requests
-from geopy.geocoders import Nominatim
-
-
 
 def encode_location_categories(df):
     """
@@ -22,8 +19,6 @@ def encode_location_categories(df):
 
     global _encoders_fitted
     _encoders_fitted = False
-
-
 
     # Ensure columns exist, replace None with "unknown"
     for col in ["location_category_foursquare", "location_category_osm"]:
