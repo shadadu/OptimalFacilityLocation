@@ -47,9 +47,26 @@ def la_parcels_by_intersect(x_3857: float, y_3857: float, tol_m: float = 1.0):
         inSR=3857, outSR=3857
     )
 
-def la_parcels_by_attribute(where: str):
-    """Attribute search (e.g., AIN='1234-567-890'). Field names vary; inspect layer fields first."""
-    return _arcgis_query(LA_PARCELS_BASE, 0, where=where)
+# def la_parcels_by_attribute(where: str):
+#     """Attribute search (e.g., AIN='1234-567-890'). Field names vary; inspect layer fields first."""
+#     return _arcgis_query(LA_PARCELS_BASE, 0, where=where)
+
+# in your parcel_sources.py module
+
+LA_PARCELS_FULL_BASE = "https://assessor.gis.lacounty.gov/assessor/rest/services/PAIS/pais_parcels/MapServer"
+
+def la_parcels_full_by_attribute(where: str, layer: int = 0):
+    """
+    Query the full PAIS parcels layer for any matching AIN
+    (not limited to recently sold parcels).
+    """
+    return _arcgis_query(
+        LA_PARCELS_FULL_BASE, layer,
+        where=where,
+        outFields='*',
+        returnGeometry=True
+    )
+
 
 def la_mapbook_by_tile(where: str = "1=1"):
     """Lookup Assessor Map Book tiles (helpful for indexing)."""
@@ -111,6 +128,23 @@ def hcad_by_account(account: str):
             return res
     # fallback: LIKE match
     return _arcgis_query(HCAD_PARCELS_BASE, 0, where=f"ACCOUNT LIKE '%{account}%'")
+
+def hcad_by_account(account: str):
+    """
+    Query Harris County HCAD Parcels layer by account number.
+    Uses 'HCAD_NUM' (primary) and 'acct_num' (alias) fields.
+    Fallback: partial match on owner_name_1.
+    """
+    for field in ("HCAD_NUM", "acct_num"):
+        try:
+            res = _arcgis_query(HCAD_PARCELS_BASE, 0, where=f"{field}='{account}'", outFields="*")
+            if res.get("features"):
+                return res
+        except requests.HTTPError as e:
+            print(f"Error querying field {field}: {e}")
+    # fallback: search owner name
+    return _arcgis_query(HCAD_PARCELS_BASE, 0, where=f"owner_name_1 LIKE '%{account}%'", outFields="*")
+
 
 def hcad_by_point(x_3857: float, y_3857: float):
     geom = {"x": x_3857, "y": y_3857, "spatialReference": {"wkid": 3857}}
@@ -212,21 +246,41 @@ def nyc_property_tax_portal_link(boro: int, block: int, lot: int) -> str:
 # Example usage (remove or guard with __main__)
 # ---------------------------
 if __name__ == "__main__":
-    # LA example: attribute search (you must know a valid field & value)
-    print(la_parcels_by_attribute("AIN='2125-036-901'"))
+
+    # Replace with a valid AIN from LA County assessor parcel data:
+    data = la_parcels_full_by_attribute("AIN='2125036901'")
+    print(f' LA County assessor: {data}')
 
     # Cook County example:
-    # print(cook_assessed_values("16014300070000"))
+    print(f'Cook County: {cook_assessed_values("16014300070000")}')
 
     # HCAD example:
-    # print(hcad_by_account("1234567890"))
+    hcad_example = hcad_by_account("1234567890")
+    print(f'hcad_example: {hcad_example}')
 
     # Maricopa example:
-    # print(maricopa_by_apn("123-45-678"))
+    maricopa_data_example = maricopa_by_apn("123-45-678")
+    print(f'Maricopa {maricopa_data_example}')
 
     # King County example:
-    # print(king_county_by_parcel_id("1234567890"))
+    king_co_example = king_county_by_parcel_id("1234567890")
+    print(f'King County example {king_co_example}')
 
     # NYC example:
-    print(nyc_dof_assessment_by_bbl(2, 1, 1))
+    nyc_assess = nyc_dof_assessment_by_bbl(3, 1, 1)
+    print(f'NYC example {nyc_assess}')
     pass
+
+
+    # Valid—with a real 13-digit account from HCAD
+    res1 = hcad_by_account("1234567890123")
+    print("By HCAD_NUM:", res1.get("features", []))
+
+    # Alternate field (acct_num), if different formatting is used
+    res2 = hcad_by_account("0012345678901")
+    print("By acct_num:", res2.get("features", []))
+
+    # Fallback to owner name partial match
+    res3 = hcad_by_account("Smith")
+    print("By Owner Name:", res3.get("features", []))
+
