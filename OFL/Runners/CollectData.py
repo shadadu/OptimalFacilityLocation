@@ -13,8 +13,8 @@ def build_train_vars(candidates
                      , radius_m
                      , cr
                      , CENSUS_API_KEY
-                     , geoclient_app_id
-                     , geoclient_app_key
+                     , geoclient_subscription_key
+                     , SOCRATA_API_KEY
                      ):
     rows = []
     cnt_ = 0
@@ -24,9 +24,8 @@ def build_train_vars(candidates
         X = X_df.mean(numeric_only=True).to_dict()
         # Y = revenue_estimation(lat, lon)
         Y = revenue_estimation_by_dof_assessment(lat, lon
-                                                 , geoclient_app_id
-                                                 , geoclient_app_key
-                                                 , socrata_app_token=None
+                                                 , geoclient_subscription_key=geoclient_subscription_key
+                                                 , socrata_app_token=SOCRATA_API_KEY
                                                  , radius_tax_value=200)
         print(f'revenue {Y}')
         X["lat"], X["lon"], X["revenue"] = lat, lon, Y,
@@ -52,7 +51,13 @@ def main():
     ee.Authenticate()
     ee.Initialize(project='ee-shaddie77')
 
-    CENSUS_API_KEY = st.secrets.get("CENSUS_API_KEY", "")  # set via Streamlit secrets or replace string
+    CENSUS_API_KEY = st.secrets.get("CENSUS_API_KEY", "")  # use streamlit secrets to store and retrieve api
+    geoclient_key = st.secrets.get("NYC_GEOCLIENT_PRIMARY", "")
+    socrata_token = st.secrets.get("SOCRATA_APP_TOKEN", "")
+
+    lat, lon = 40.7128, -74.0060  # Example: Manhattan
+    revenue = revenue_estimation_by_dof_assessment(lat, lon, geoclient_key, socrata_token)
+    print("Estimated revenue:", revenue)
 
     # ------------------------
     # PARAMETERS
@@ -70,7 +75,7 @@ def main():
     print(f'size of candidates {len(candidates)}')
     print(f'element of candidates {candidates[0]}')
 
-    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY)
+    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY, geoclient_key, socrata_token)
     build_df(rows, "")
 
 
