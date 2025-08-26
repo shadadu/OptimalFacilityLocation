@@ -5,22 +5,33 @@ import ee
 from OFL.Predictors.Predictors import build_features_for_location, generate_city_candidate_locations
 from OFL.Predictors.Categories import encode_location_categories
 from OFL.RevenueEstimation.RevenueEstimation import revenue_estimation
+from OFL.Runners.CollectRevenueData.RevenueByAssessedValue import revenue_estimation_by_dof_assessment
 import time
 
 
-def build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY):
+def build_train_vars(candidates
+                     , radius_m
+                     , cr
+                     , CENSUS_API_KEY
+                     , geoclient_app_id
+                     , geoclient_app_key
+                     ):
     rows = []
     cnt_ = 0
     for lat, lon in candidates:
-        # print(f'cnt_ {cnt_}')
         X_df = build_features_for_location(lat, lon, radius_m, cr, CENSUS_API_KEY)
         # Aggregate neighborhood features (mean as example)
-        agg = X_df.mean(numeric_only=True).to_dict()
-        Y = revenue_estimation(lat, lon)
+        X = X_df.mean(numeric_only=True).to_dict()
+        # Y = revenue_estimation(lat, lon)
+        Y = revenue_estimation_by_dof_assessment(lat, lon
+                                                 , geoclient_app_id
+                                                 , geoclient_app_key
+                                                 , socrata_app_token=None
+                                                 , radius_tax_value=200)
         print(f'revenue {Y}')
-        agg["lat"], agg["lon"], agg["revenue"] = lat, lon, Y,
+        X["lat"], X["lon"], X["revenue"] = lat, lon, Y,
         # agg["lat"], agg["lon"] = lat, lon
-        rows.append(agg)
+        rows.append(X)
         cnt_ += 1
 
     return rows
