@@ -14,8 +14,17 @@ of thumb and intuition, and experience and some sales data to determine where to
 and algorithms to help inform and determine shop locations.
 
 This open-source (MIT License) project intends to replicate the data analysis and algorithmic processes that 
-help inform shop locations. For starters, determining shop location demands some economics and econometrics, with some help from
-machine learning. We look forward to sharing the data and code as we research and implement the application. 
+help inform shop locations. We look forward to sharing the data and code. 
+
+# Modeling
+
+Ideally, this is a regression problem where we have the dependent variable as 
+as the optimal location coordinates (GPS, Geolocation) and the explanatory variables or predictors include relevant 
+radius demographics, income levels of potential customers, competitive retailer factors, target revenue,
+location amenities (i.e., other businesses or social locations that affect traffic via spillover effects), etc. Practically though,
+we can achieve this prediction by also devising a regression model where these factors predict the expected revenue 
+for each location. Then, given a list of candidate locations, we can simply run inference on the trained model and select
+the best location as that with the best predicted revenue.
 
 
 # References andLiterature Review
@@ -58,21 +67,3 @@ At minimum, we would need retailer and consumer data, as well as some location d
 17. Sales Tax Collections Data | USA | 2019 - 2023: https://aws.amazon.com/marketplace/pp/prodview-wqbcwel53bwbg?sr=0-12&ref_=beagle&applicationId=AWSMPContessa#offers
 18. Business Data US / 55M Businesses in the US ( sample): https://aws.amazon.com/marketplace/pp/prodview-ux4lwqysgqshg?sr=0-22&ref_=beagle&applicationId=AWSMPContessa#dataSets
 
-# Modeling
-
-The essential initial methodology is to look at this as a regression problem where we have the dependent variable as 
-as the optimal location coordinates (GPS, Geolocation) and the explanatory or control variables include relevant 
-radius demographics, income levels of potential customers, competitive retailer factors, target or expected revenue, 
-location amenities (i.e., other businesses or social locations that affect traffic), etc. However, given that 
-we would have sales data only for locations with relevant retail shops, it may be more fitting to run the regression model
-with Expected Sales as the dependent variable and it's relative location as one of the dependent variables. Expectedly, machine learning would also 
-help to model the complexity of the data and factors. 
-
-Essentially, we would need sales data of retailer shop at a location, incomes and other demographics
-(gender, education levels, employment statuses and industry)  of the population geo-distributions within the vicinity of the shop. 
-We would also need data of other amenities in the shop's vicinity i.e., what 
-other shops or facilities in the shop's vicinity could enable positive spillover effects in terms of shoppers traffic? Thus, the 
-categories and patronage of nearby shops and amenities would also influence the traffic and revenue to a shop.
-Competitive effects of similar or alternative category shops would also be captured in the model by including location
-facility categories in the model. It also seems that including retail chain or franchise id would be enough to disambiguate
-between cannibalization and competitive effects.
