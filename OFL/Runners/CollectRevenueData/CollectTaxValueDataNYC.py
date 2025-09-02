@@ -27,11 +27,11 @@ def query_point(lat, lon, extra_fields=None):
     res = resp.json()
     # print(f'response {res}')
     feats = res.get("features", [])
-    print(f'feats {feats}')
+    # print(f'feats {feats}')
     # assessed_val = feats[0]["attributes"]#["AssessTot"]
     # print(f'assessed_val {assessed_val}')
     if not feats:
-        return {"BBL": None, "AssessTot": None, "status": "No tax value assigned"}
+        return {"bbl": None, "assesstot": None, "status": "No tax value assigned"}
     attr = feats[0].get("attributes", {})
     return {
         "bbl": attr.get("BBL"),
