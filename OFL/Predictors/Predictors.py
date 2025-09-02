@@ -15,19 +15,25 @@ def generate_city_candidate_locations(location_name, radius_c):
     city_poly = gdf.geometry.iloc[0]
     bounds = city_poly.bounds
 
-    step = radius_c * 1.5
+    print(f'City bounds {bounds}')
+
+    step = radius_c * 1.5 * 50
     deg_step = step / 111_320
-    print(f'size of generate city loop: {len(np.arange(bounds[1], bounds[3], deg_step))}')
+
+    print(f'size of generate city loop for deg_step {deg_step}: {len(np.arange(bounds[1], bounds[3], deg_step))}')
     candidates = []
     count = 0
     for lat in np.arange(bounds[1], bounds[3], deg_step):
         for lon in np.arange(bounds[0], bounds[2], deg_step):
+            # Create a Shapely Point object
             p = Point(lon, lat)
             if city_poly.contains(p):
+                print(f'city limits contains l')
                 candidates.append((lat, lon))
         # print(f'current count of generate city loop: {count}')
         count += 1
-    return candidates[0:99]
+    # print(f'Candidates {candidates}')
+    return candidates
 
 
 def get_median_income_by_point(lat, lon, radius, CENSUS_API_KEY):
