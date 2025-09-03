@@ -167,18 +167,79 @@ def snap_to_nearest_town(lat, lon):
     return lat, lon  # fallback to original point
 
 def get_fips_from_coords(lat, lon, retries=3, wait=5):
-    url = "https://geo.fcc.gov/api/census/block/find"
+    """
+        Try FCC API first. If it fails, fallback to Census Geocoder API.
+        Returns block info JSON.
+        """
+    fcc_url = "https://geo.fcc.gov/api/census/block/find"
     params = {"latitude": lat, "longitude": lon, "format": "json"}
-    for i in range(retries):
+
+    # Try FCC first with retry logic
+    for attempt in range(retries):
         try:
-            r = requests.get(url, params=params, timeout=20)
-            r.raise_for_status()
-            return r.json()
-        except requests.exceptions.HTTPError as e:
-            if r.status_code == 502 and i < retries - 1:
-                time.sleep(wait)
-                continue
-            raise
+            resp = requests.get(fcc_url, params=params, timeout=5)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.RequestException as e:
+            # if last attempt, fall back
+            if attempt == retries - 1:
+                break
+            time.sleep(2 ** attempt)  # exponential backoff
+
+    # ---- FALLBACK: Census Geocoder ----
+    print("⚠️ FCC failed, falling back to Census Geocoder...")
+
+    geocoder_url = "https://geocoding.geo.census.gov/geocoder/geographies/coordinates"
+    params = {
+        "x": lon,
+        "y": lat,
+        "benchmark": "Public_AR_Census2020",
+        "vintage": "Census2020_Census2020",
+        "format": "json"
+    }
+    try:
+        resp = requests.get(geocoder_url, params=params, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Extract equivalent info
+        block = data["result"]["geographies"]["Census Blocks"][0]
+        return {
+            "Block": {"FIPS": block["GEOID"]},
+            "County": {"FIPS": block["COUNTY"]},
+            "State": {"FIPS": block["STATE"]},
+            "Source": "Census Geocoder"
+        }
+    except Exception as e:
+        raise RuntimeError("Both FCC and Census Geocoder failed") from e
+
+
+import requests, time
+#
+# def get_fips_from_coords(lat, lon, retries=3, wait=5):
+#     fcc_url = "https://geo.fcc.gov/api/census/block/find"
+#     params = {"latitude": lat, "longitude": lon, "format": "json"}
+#
+#     for attempt in range(retries):
+#         try:
+#             resp = requests.get(fcc_url, params=params, timeout=5)
+#             resp.raise_for_status()
+#             return resp.json()
+#         except requests.exceptions.HTTPError as e:
+#             if resp.status_code == 502 and attempt < retries - 1:
+#                 time.sleep(2 ** attempt)  # exponential backoff
+#                 continue
+#             raise
+#         except requests.exceptions.RequestException:
+#             if attempt < retries - 1:
+#                 time.sleep(2 ** attempt)
+#                 continue
+#             raise
+
+# # Example usage
+# block_info = get_census_block(40.509366357887174, -74.22538090873158)
+# print(block_info)
+
 
 
 def get_fsq_count(lat, lon, r):

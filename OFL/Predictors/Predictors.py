@@ -38,7 +38,7 @@ def generate_city_candidate_locations(location_name, radius_c):
 
 def get_median_income_by_point(lat, lon, radius, CENSUS_API_KEY):
     # TODO: Replace with buffered multi-tract ACS query
-    print(f'Getting media_income ...')
+    print(f'Getting median_income ...')
     """Use FCC API to find block FIPS then Census ACS to fetch B19013_001E (median household income)."""
     if not CENSUS_API_KEY:
         raise RuntimeError("CENSUS_API_KEY is not set. Put your key in Streamlit secrets or set variable.")
@@ -63,8 +63,10 @@ def get_median_income_by_point(lat, lon, radius, CENSUS_API_KEY):
     r2.raise_for_status()
     arr = r2.json()
     if len(arr) < 2:
+        print(f'Unable to find median income')
         return None
     val = arr[1][0]
+    print(f'median income value {val}')
     try:
         return float(val) if val not in (None, "", "null") else None
     except Exception:
@@ -131,32 +133,117 @@ def haversine(lon1, lat1, lon2, lat2):
     a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
     return R * 2 * asin(sqrt(a))
 
+import requests
+import duckdb
+import os
+import hashlib
 
-def get_fsq_count(lat, lon, r):
-    print(f'Getting Four Square Count')
-    api_url = "https://datasets-server.huggingface.co/parquet?dataset=foursquare/fsq-os-places"
-    j = requests.get(api_url).json()
+# Paths
+FSQ_LOCAL_FILE = "/Users/rckyi/Documents/Data/fsq_places.parquet"
+FSQ_DATASET_META = "https://datasets-server.huggingface.co/parquet?dataset=foursquare/fsq-os-places"
+
+# Global caches
+# _fsq_duckdb_con = None
+# _fsq_query_cache = {}
+
+
+def _ensure_local_parquet():
+    """
+    Ensure the Foursquare parquet file exists locally.
+    Downloads once from Hugging Face if not already present.
+    """
+    if os.path.exists(FSQ_LOCAL_FILE):
+        return FSQ_LOCAL_FILE
+
+    print("📥 Downloading FSQ parquet file from Hugging Face...")
+
+    # Step 1: Fetch metadata once
+    j = requests.get(FSQ_DATASET_META, timeout=15).json()
     parquet_urls = [f['url'] for f in j.get('parquet_files', []) if f['split'] == 'train']
     if not parquet_urls:
-        return 0
-    url = parquet_urls[0]
+        raise RuntimeError("No parquet URLs found for Foursquare dataset")
+    remote_url = parquet_urls[0]
 
-    con = duckdb.connect()
-    con.execute("INSTALL httpfs;")
-    con.execute("LOAD httpfs;")
+    # Step 2: Stream download
+    with requests.get(remote_url, stream=True, timeout=60) as r:
+        r.raise_for_status()
+        with open(FSQ_LOCAL_FILE, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
 
+    print(f"✅ Saved FSQ parquet to {FSQ_LOCAL_FILE}")
+    return FSQ_LOCAL_FILE
+
+
+# def _get_duckdb_connection():
+#     """Create and cache a DuckDB connection."""
+#     global _fsq_duckdb_con
+#     if _fsq_duckdb_con is None:
+#         con = duckdb.connect()
+#         _fsq_duckdb_con = con
+#     return _fsq_duckdb_con
+
+
+def get_fsq_count(lat, lon, r, _fsq_duckdb_con, _fsq_query_cache):
+    """
+    Count FSQ places within radius r (meters) of lat/lon.
+    Uses local parquet + cache to avoid repeated requests.
+    """
+    # Cache key
+    key = hashlib.md5(f"{lat:.6f}_{lon:.6f}_{r}".encode()).hexdigest()
+    if key in _fsq_query_cache:
+        return _fsq_query_cache[key]
+
+    print("Getting Foursquare Count")
+
+    local_file = _ensure_local_parquet()
+    con = _fsq_duckdb_con
+    # con = _get_duckdb_connection()
+
+    # Convert radius meters to degrees (approx)
     deg = r / 111_320
     min_lat, max_lat = lat - deg, lat + deg
     min_lon, max_lon = lon - deg, lon + deg
 
     query = f"""
     SELECT COUNT(*) as count
-    FROM '{url}'
+    FROM read_parquet('{local_file}')
     WHERE latitude BETWEEN {min_lat} AND {max_lat}
       AND longitude BETWEEN {min_lon} AND {max_lon}
     """
-    res = con.execute(query).df()
-    return int(res['count'][0]) if res.shape[0] else 0
+
+    res = con.execute(query).fetchdf()
+    count = int(res['count'][0]) if res.shape[0] else 0
+
+    _fsq_query_cache[key] = count
+    return count
+
+
+# def get_fsq_count(lat, lon, r):
+#     print(f'Getting Four Square Count')
+#     api_url = "https://datasets-server.huggingface.co/parquet?dataset=foursquare/fsq-os-places"
+#     j = requests.get(api_url).json()
+#     parquet_urls = [f['url'] for f in j.get('parquet_files', []) if f['split'] == 'train']
+#     if not parquet_urls:
+#         return 0
+#     url = parquet_urls[0]
+#
+#     con = duckdb.connect()
+#     con.execute("INSTALL httpfs;")
+#     con.execute("LOAD httpfs;")
+#
+#     deg = r / 111_320
+#     min_lat, max_lat = lat - deg, lat + deg
+#     min_lon, max_lon = lon - deg, lon + deg
+#
+#     query = f"""
+#     SELECT COUNT(*) as count
+#     FROM '{url}'
+#     WHERE latitude BETWEEN {min_lat} AND {max_lat}
+#       AND longitude BETWEEN {min_lon} AND {max_lon}
+#     """
+#     res = con.execute(query).df()
+#     return int(res['count'][0]) if res.shape[0] else 0
 
 
 def category_with_fallback(lat, lon, fetch_fn, radii=[200, 500, 1000, 2000], delay=1):
@@ -183,7 +270,7 @@ def category_with_fallback(lat, lon, fetch_fn, radii=[200, 500, 1000, 2000], del
     return "Unknown"
 
 
-def build_features_for_location(lat, lon, radius_m, cr, CENSUS_API_KEY):
+def build_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_query_cache, CENSUS_API_KEY):
     print(f'Building features for location ...')
     neighborhood_points = generate_circle_points(lat, lon, radius_m, cr)
     print(f'Number of neighborhood points {len(neighborhood_points)}')
@@ -191,8 +278,8 @@ def build_features_for_location(lat, lon, radius_m, cr, CENSUS_API_KEY):
     for (lat_i, lon_i) in neighborhood_points:
         pop = get_population_density_gee(lat_i, lon_i, cr)
         osm_poi = get_osm_poi_density(lat_i, lon_i, cr)
-        fsq_poi = get_fsq_count(lat_i, lon_i, cr)
-        # print(f'pop, fsq_poi {pop} {fsq_poi}')
+        fsq_poi = get_fsq_count(lat_i, lon_i, cr, _fsq_duckdb_con, _fsq_query_cache)
+        print(f'median income for latitude {lat_i}, longitude {lon_i}')
         income = get_median_income_by_point(lat_i, lon_i, cr, CENSUS_API_KEY)
         osm_cat = get_osm_category(lat, lon)
         fsq_cat = get_foursquare_category(lat, lon)
