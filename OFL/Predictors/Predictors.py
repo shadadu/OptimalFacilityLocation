@@ -1,7 +1,6 @@
 import numpy as np
 from OFL.Predictors.Categories import get_osm_category, get_foursquare_category
 from OFL.Helpers import get_osm_poi_density, get_population_density_gee, get_fips_from_coords, snap_to_nearest_town
-import duckdb
 import osmnx as ox
 import pandas as pd
 from shapely.geometry import Point
@@ -109,19 +108,15 @@ def generate_circle_points(center_lat, center_lon, big_radius, N=10):
     step = best_radius * 1.5
     deg_step = step / 111_320
     points = []
-    print(f'looper {len(np.arange(center_lat - big_radius/111_320, center_lat + big_radius/111_320, deg_step) )}')
     for lat in np.arange(center_lat - big_radius/111_320,
                          center_lat + big_radius/111_320, deg_step):
-        print(f'looper 2 {len(np.arange(center_lon - big_radius/111_320, center_lon + big_radius/111_320, deg_step))}')
         for lon in np.arange(center_lon - big_radius/111_320,
                              center_lon + big_radius/111_320, deg_step):
-            # print(f'haversine condition {haversine(center_lat, center_lon, lat, lon)} {big_radius}')
             if haversine(center_lat, center_lon, lat, lon) <= big_radius:
-                print(f'haversine condition {haversine(center_lat, center_lon, lat, lon)} {big_radius}')
                 points.append((lat, lon))
 
     print(f"Chosen small_radius: {best_radius:.2f} m, generated {len(points)} subcircles")
-    return points[0:99] # , best_radius
+    return points # , best_radius
 
 
 def haversine(lon1, lat1, lon2, lat2):
