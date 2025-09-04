@@ -68,11 +68,6 @@ def main():
     ee.Initialize(project='ee-shaddie77')
 
     CENSUS_API_KEY = st.secrets.get("CENSUS_API_KEY", "")  # use streamlit secrets to store and retrieve api
-    geoclient_key = st.secrets.get("NYC_GEOCLIENT_PRIMARY", "")
-    socrata_token = st.secrets.get("SOCRATA_APP_TOKEN", "")
-
-    print(f'secrets geoclient_key: {geoclient_key}, census_api_key: {CENSUS_API_KEY}, socrata_token: {socrata_token}')
-
     # lat, lon = 40.7128, -74.0060  # Example: Manhattan
 
     # ------------------------
