@@ -141,6 +141,10 @@ Cache/
 # DS_Store
 .DS_Store
 
+#cache
+*tax_lots.*
+*tax_lot_info.*
+
 
 # Spyder project settings
 .spyderproject
