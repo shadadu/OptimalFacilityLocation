@@ -19,27 +19,143 @@ from io import BytesIO
 import zipfile
 import tempfile
 
+import ee
+import requests
+import hashlib
+from geopy.geocoders import Nominatim
+from functools import lru_cache
+import time
 
+# Initialize Earth Engine
+ee.Authenticate()
+ee.Initialize(project='ee-shaddie77')
+
+# In-memory caches
+_geocode_cache = {}
+_pop_cache = {}
+
+# Helper: robust cached geocoding
 def get_nearest_place_coords(lat, lon):
     """
-    Returns (lat, lon) of nearest city/town/village center to the input coordinates.
-    Uses Nominatim reverse + forward geocoding.
+    Returns (lat, lon) of nearest city/town/village center.
+    Uses Nominatim reverse + forward geocoding, with caching + backoff.
     """
-    geolocator = Nominatim(user_agent="geo-fallback-app")
+    key = f"{lat:.5f}_{lon:.5f}"
+    if key in _geocode_cache:
+        return _geocode_cache[key]
+
+    geolocator = Nominatim(user_agent="geo-fallback-app", timeout=10)
 
     try:
+        # Reverse lookup (lat, lon -> nearest place)
         location = geolocator.reverse((lat, lon), exactly_one=True)
         if location and "address" in location.raw:
             addr = location.raw["address"]
             place = addr.get("city") or addr.get("town") or addr.get("village")
             if place:
+                # Forward geocode the place name to get its centroid
                 place_loc = geolocator.geocode(place)
                 if place_loc:
-                    return (place_loc.latitude, place_loc.longitude)
+                    coords = (place_loc.latitude, place_loc.longitude)
+                    _geocode_cache[key] = coords
+                    return coords
     except Exception as e:
         print(f"Geocoding fallback failed: {e}")
+        time.sleep(2)  # backoff
 
+    _geocode_cache[key] = None
     return None
+
+
+def get_population_density_gee(lat, lon, radius_m, max_expand=3, expand_factor=2):
+    """
+    Get population density from WorldPop using Earth Engine.
+    Expands radius if no values are found, and falls back to nearest
+    city/town center if still empty.
+    Includes caching to avoid repeated queries.
+    """
+    cache_key = f"{lat:.5f}_{lon:.5f}_{radius_m}"
+    if cache_key in _pop_cache:
+        return _pop_cache[cache_key]
+
+    print(f"Getting population density at ({lat}, {lon}), radius={radius_m}m")
+
+    dataset = ee.ImageCollection("WorldPop/GP/100m/pop") \
+        .filter(ee.Filter.date('2020-01-01', '2020-12-31')) \
+        .first()
+
+    attempt_radius = radius_m
+
+    # Try with expanding radius
+    for attempt in range(max_expand + 1):
+        try:
+            point = ee.Geometry.Point(lon, lat)
+            region = point.buffer(attempt_radius).bounds()
+            stats = dataset.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=region,
+                scale=100,
+                maxPixels=1e9
+            )
+            result = stats.getInfo()
+            pop_val = result.get('population', None)
+            if pop_val is not None:
+                print(f'Found pop_val {pop_val}')
+                _pop_cache[cache_key] = pop_val
+                return pop_val
+            else:
+                print(f"No population data at radius {attempt_radius}m, expanding search...")
+        except Exception as e:
+            print(f"GEE query failed at radius {attempt_radius}m: {e}")
+
+        attempt_radius *= expand_factor
+
+    # Fallback to nearest city/town
+    print("No population found after expansions. Falling back to nearest town/city center...")
+    fallback_coords = get_nearest_place_coords(lat, lon)
+    if fallback_coords:
+        try:
+            point = ee.Geometry.Point(fallback_coords[::-1])  # (lon, lat)
+            region = point.buffer(radius_m).bounds()
+            stats = dataset.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=region,
+                scale=100,
+                maxPixels=1e9
+            )
+            result = stats.getInfo()
+            pop_val = result.get('population', None)
+            if pop_val is not None:
+                print(f'Found pop_val {pop_val}')
+                _pop_cache[cache_key] = pop_val
+                return pop_val
+        except Exception as e:
+            print(f"GEE fallback query failed: {e}")
+
+    print("No population data found, even after fallback.")
+    _pop_cache[cache_key] = 0
+    return 0
+
+# def get_nearest_place_coords(lat, lon):
+#     """
+#     Returns (lat, lon) of nearest city/town/village center to the input coordinates.
+#     Uses Nominatim reverse + forward geocoding.
+#     """
+#     geolocator = Nominatim(user_agent="geo-fallback-app")
+#
+#     try:
+#         location = geolocator.reverse((lat, lon), exactly_one=True)
+#         if location and "address" in location.raw:
+#             addr = location.raw["address"]
+#             place = addr.get("city") or addr.get("town") or addr.get("village")
+#             if place:
+#                 place_loc = geolocator.geocode(place)
+#                 if place_loc:
+#                     return (place_loc.latitude, place_loc.longitude)
+#     except Exception as e:
+#         print(f"Geocoding fallback failed: {e}")
+#
+#     return None
 
 # ----------------------------
 # POI Density (with fallback)
@@ -83,6 +199,8 @@ def get_osm_poi_density(lat, lon, radius, max_expand=3, expand_factor=2):
 
     print("No POIs found, even after fallback.")
     return 0
+
+
 def get_population_density_gee(lat, lon, radius_m, max_expand=3, expand_factor=2):
     """
     Get population density from WorldPop using Earth Engine.
