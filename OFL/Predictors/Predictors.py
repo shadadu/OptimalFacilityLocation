@@ -219,32 +219,6 @@ def get_fsq_count(lat, lon, r, _fsq_duckdb_con, _fsq_query_cache):
     return count
 
 
-# def get_fsq_count(lat, lon, r):
-#     print(f'Getting Four Square Count')
-#     api_url = "https://datasets-server.huggingface.co/parquet?dataset=foursquare/fsq-os-places"
-#     j = requests.get(api_url).json()
-#     parquet_urls = [f['url'] for f in j.get('parquet_files', []) if f['split'] == 'train']
-#     if not parquet_urls:
-#         return 0
-#     url = parquet_urls[0]
-#
-#     con = duckdb.connect()
-#     con.execute("INSTALL httpfs;")
-#     con.execute("LOAD httpfs;")
-#
-#     deg = r / 111_320
-#     min_lat, max_lat = lat - deg, lat + deg
-#     min_lon, max_lon = lon - deg, lon + deg
-#
-#     query = f"""
-#     SELECT COUNT(*) as count
-#     FROM '{url}'
-#     WHERE latitude BETWEEN {min_lat} AND {max_lat}
-#       AND longitude BETWEEN {min_lon} AND {max_lon}
-#     """
-#     res = con.execute(query).df()
-#     return int(res['count'][0]) if res.shape[0] else 0
-
 
 def category_with_fallback(lat, lon, fetch_fn, radii=[200, 500, 1000, 2000], delay=1):
     """

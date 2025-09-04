@@ -1,22 +1,16 @@
 import streamlit as st
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-import ee
 from OFL.Predictors.Predictors import build_features_for_location, generate_city_candidate_locations
 from OFL.Predictors.Categories import encode_location_categories
 from OFL.RevenueEstimation.RevenueEstimation import revenue_estimation
-# from OFL.Runners.CollectRevenueData.RevenueByAssessedValue import revenue_estimation_by_dof_assessment
-from OFL.Runners.CollectRevenueData.CollectTaxValueDataNYC import batch_process, query_point, revenue_estimation_by_dof_assessment
+from OFL.Runners.CollectRevenueData.CollectTaxValueDataNYC import batch_process_tax_value, query_point_tax_value
 import time
 import duckdb
 import ee
 
-# Global caches
+# Global caches for Foursquare(HF + Duckdb)
 _fsq_duckdb_con = None
 _fsq_query_cache = {}
-
-ee.Authenticate()
-ee.Initialize(project='ee-shaddie77')
 
 def _get_duckdb_connection():
     """Create and cache a DuckDB connection."""
@@ -25,36 +19,29 @@ def _get_duckdb_connection():
         con = duckdb.connect()
         _fsq_duckdb_con = con
     return _fsq_duckdb_con
+
 def build_train_vars(candidates
                      , radius_m
                      , cr
                      , CENSUS_API_KEY
-                     , geoclient_subscription_key
-                     , SOCRATA_API_KEY
                      ):
     _fsq_duckdb_con = _get_duckdb_connection()
     rows = []
     cnt_ = 0
 
     for lat, lon in candidates:
-        # X_df = build_features_for_location(lat, lon, radius_m, cr, CENSUS_API_KEY)
-        # # Aggregate neighborhood features (mean as example)
-        # agg = X_df.mean(numeric_only=True).to_dict()
-        # # Y = revenue_estimation(lat, lon)
         points = lat, lon
         print(f'Points for tax value {points}')
-        Y = query_point(lat, lon)
-        # Y = revenue_estimation_by_dof_assessment(lat, lon
-        #                                          , geoclient_subscription_key=geoclient_subscription_key
-        #                                          , socrata_app_token=SOCRATA_API_KEY
-        #                                          , radius_tax_value=200)
+        Y = query_point_tax_value(lat, lon)
 
         if Y["status"] == "Tax value assigned":
             print(f'revenue Y: {Y}')
-            X_df = build_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_query_cache, CENSUS_API_KEY)
+            X_df = build_features_for_location(lat, lon,
+                                               radius_m, cr,
+                                               _fsq_duckdb_con, _fsq_query_cache
+                                               , CENSUS_API_KEY)
             # Aggregate neighborhood features (mean as example)
             agg = X_df.mean(numeric_only=True).to_dict()
-            # Y = revenue_estimation(lat, lon)
             points = lat, lon
             print(f'Points for tax value {points}')
             agg["lat"], agg["lon"], agg["revenue"] = lat, lon, Y
@@ -104,7 +91,7 @@ def main():
     print(f'size of candidates {len(candidates)}')
     print(f'element of candidates {candidates[0]}')
 
-    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY, geoclient_key, socrata_token)
+    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY)
     build_df(rows, "/Users/rckyi/Documents/Data/ofl_data.csv")
 
 
