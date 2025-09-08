@@ -5,6 +5,7 @@ import joblib
 from geopy.geocoders import Nominatim
 import ee
 from OFL.Helpers import _get_duckdb_connection
+from OFL.Runners.Inference import build_inference_features_for_location
 from OFL.Predictors.Predictors import generate_city_candidate_locations, build_features_for_location
 
 # -----------------------
@@ -84,12 +85,13 @@ if submitted:
         st.stop()
 
     with st.spinner("Computing Predictors..."):
-        X_df = build_features_for_location(lat, lon
-                                           , radius_m
-                                           , cr
-                                           , _fsq_duckdb_con
-                                           , _fsq_query_cache
-                                           , CENSUS_API_KEY)
+        X_df = build_inference_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_query_cache, CENSUS_API_KEY)
+        # X_df = build_features_for_location(lat, lon
+        #                                    , radius_m
+        #                                    , cr
+        #                                    , _fsq_duckdb_con
+        #                                    , _fsq_query_cache
+        #                                    , CENSUS_API_KEY)
 
         """
          features.append({

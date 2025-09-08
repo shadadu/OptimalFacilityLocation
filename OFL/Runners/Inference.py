@@ -3,6 +3,7 @@ from OFL.Predictors.Predictors import get_fsq_count, get_median_income_by_point,
 from OFL.Helpers import get_osm_poi_density, get_population_density_gee, get_fips_from_coords, snap_to_nearest_town
 from OFL.Predictors.Predictors import build_features_for_location, generate_city_candidate_locations
 from OFL.Helpers import _get_duckdb_connection
+import pandas as pd
 
 
 
@@ -29,4 +30,4 @@ def build_inference_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_co
             "location_category_osm": osm_cat,
         })
 
-    return features
+    return pd.DataFrame(features)

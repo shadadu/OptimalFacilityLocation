@@ -1,34 +1,13 @@
-import streamlit as st
 import duckdb
-import requests
 import osmnx as ox
-import numpy as np
-import pandas as pd
-from shapely.geometry import Point
-from sklearn.linear_model import LinearRegression
-import statsmodels.api as sm
-from geopy.geocoders import Nominatim
-import altair as alt
-from shapely.geometry import Point
-import geopandas as gpd
-from math import radians, cos, sin, asin, sqrt
-import ee
-import time, requests
-import os
-from io import BytesIO
-import zipfile
-import tempfile
-
 import ee
 import requests
-import hashlib
 from geopy.geocoders import Nominatim
-from functools import lru_cache
 import time
 
 # Initialize Earth Engine
-ee.Authenticate()
-ee.Initialize(project='ee-shaddie77')
+# ee.Authenticate()
+# ee.Initialize(project='ee-shaddie77')
 
 # # In-memory caches
 _geocode_cache = {}
@@ -249,61 +228,6 @@ def get_fips_from_coords(lat, lon, retries=3, wait=5):
         }
     except Exception as e:
         raise RuntimeError("Both FCC and Census Geocoder failed") from e
-
-
-import requests, time
-#
-# def get_fips_from_coords(lat, lon, retries=3, wait=5):
-#     fcc_url = "https://geo.fcc.gov/api/census/block/find"
-#     params = {"latitude": lat, "longitude": lon, "format": "json"}
-#
-#     for attempt in range(retries):
-#         try:
-#             resp = requests.get(fcc_url, params=params, timeout=5)
-#             resp.raise_for_status()
-#             return resp.json()
-#         except requests.exceptions.HTTPError as e:
-#             if resp.status_code == 502 and attempt < retries - 1:
-#                 time.sleep(2 ** attempt)  # exponential backoff
-#                 continue
-#             raise
-#         except requests.exceptions.RequestException:
-#             if attempt < retries - 1:
-#                 time.sleep(2 ** attempt)
-#                 continue
-#             raise
-
-# # Example usage
-# block_info = get_census_block(40.509366357887174, -74.22538090873158)
-# print(block_info)
-
-
-#
-# def get_fsq_count(lat, lon, r):
-#     print(f'Getting Four Square Count')
-#     api_url = "https://datasets-server.huggingface.co/parquet?dataset=foursquare/fsq-os-places"
-#     j = requests.get(api_url).json()
-#     parquet_urls = [f['url'] for f in j.get('parquet_files', []) if f['split'] == 'train']
-#     if not parquet_urls:
-#         return 0
-#     url = parquet_urls[0]
-#
-#     con = duckdb.connect()
-#     con.execute("INSTALL httpfs;")
-#     con.execute("LOAD httpfs;")
-#
-#     deg = r / 111_320
-#     min_lat, max_lat = lat - deg, lat + deg
-#     min_lon, max_lon = lon - deg, lon + deg
-#
-#     query = f"""
-#     SELECT COUNT(*) as count
-#     FROM '{url}'
-#     WHERE latitude BETWEEN {min_lat} AND {max_lat}
-#       AND longitude BETWEEN {min_lon} AND {max_lon}
-#     """
-#     res = con.execute(query).df()
-#     return int(res['count'][0]) if res.shape[0] else 0
 
 
 def _get_duckdb_connection():
