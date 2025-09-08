@@ -12,7 +12,7 @@ from OFL.Predictors.Predictors import generate_city_candidate_locations, build_f
 # CONFIG
 # -----------------------
 HF_MODEL_REPO = "shaddie/revenue-predictor"
-HF_MODEL_FILENAME = "model.joblib"            # Model file inside repo
+HF_MODEL_FILENAME = "model.joblib"  # Model file inside repo
 
 ee.Authenticate()
 ee.Initialize(project='ee-shaddie77')
@@ -41,6 +41,7 @@ candidates = generate_city_candidate_locations(location_name, radius_c)
 print(f'size of candidates {len(candidates)}')
 print(f'element of candidates {candidates[0]}')
 
+
 @st.cache_resource
 def load_model_from_hf():
     """Download model from Hugging Face Hub."""
@@ -49,16 +50,16 @@ def load_model_from_hf():
     r.raise_for_status()
     with open(HF_MODEL_FILENAME, "wb") as f:
         f.write(r.content)
-    model = joblib.load(HF_MODEL_FILENAME)
-    return model
+    model_hf = joblib.load(HF_MODEL_FILENAME)
+    return model_hf
 
-def geocode(location_name):
+
+def geocode(geolocation_name):
     geolocator = Nominatim(user_agent="revenue_estimator_app")
-    loc = geolocator.geocode(location_name, timeout=10)
+    loc = geolocator.geocode(geolocation_name, timeout=10)
     if loc is None:
-        raise ValueError(f"Could not geocode location: {location_name}")
+        raise ValueError(f"Could not geocode location: {geolocation_name}")
     return loc.latitude, loc.longitude
-
 
 
 # -----------------------
@@ -85,7 +86,12 @@ if submitted:
         st.stop()
 
     with st.spinner("Computing Predictors..."):
-        X_df = build_inference_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_query_cache, CENSUS_API_KEY)
+        X_df = build_inference_features_for_location(lat, lon
+                                                     , radius_m
+                                                     , cr
+                                                     , _fsq_duckdb_con
+                                                     , _fsq_query_cache
+                                                     , CENSUS_API_KEY)
         # X_df = build_features_for_location(lat, lon
         #                                    , radius_m
         #                                    , cr
@@ -118,9 +124,6 @@ if submitted:
             }  # tbd: add categories data
         )
 
-
-
-
 # --- Display locations in a table ---
 if st.session_state.locations:
     df = pd.DataFrame(st.session_state.locations)
@@ -133,7 +136,7 @@ if st.session_state.locations:
             model = load_model_from_hf()
 
         with st.spinner("Running inference..."):
-            feature_cols = ["population_density", "poi_density", "median_income"] # tbd: update feature columns
+            feature_cols = ["population_density", "poi_density", "median_income"]  # tbd: update feature columns
             df["estimated_revenue"] = model.predict(df[feature_cols])
 
         st.subheader("💰 Revenue Estimates")
