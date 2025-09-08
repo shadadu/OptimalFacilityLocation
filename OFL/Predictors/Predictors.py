@@ -6,6 +6,9 @@ import pandas as pd
 from shapely.geometry import Point
 from math import radians, cos, sin, asin, sqrt
 import time, requests
+import os
+import hashlib
+
 
 def generate_city_candidate_locations(location_name, radius_c):
     # Use OSMnx to get city polygon
@@ -100,8 +103,8 @@ def generate_circle_points(center_lat, center_lon, big_radius, N=10):
             low = mid
         else:
             high = mid
-    low = 50
-    best_radius = 50
+    # low = 50
+    # best_radius = 50
     print(f'low, high {low}, {high}')
 
     # Now generate the actual points with the chosen radius
@@ -128,18 +131,6 @@ def haversine(lon1, lat1, lon2, lat2):
     a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
     return R * 2 * asin(sqrt(a))
 
-import requests
-import duckdb
-import os
-import hashlib
-
-# Paths
-FSQ_LOCAL_FILE = "/Users/rckyi/Documents/Data/fsq_places.parquet"
-FSQ_DATASET_META = "https://datasets-server.huggingface.co/parquet?dataset=foursquare/fsq-os-places"
-
-# Global caches
-# _fsq_duckdb_con = None
-# _fsq_query_cache = {}
 
 
 def _ensure_local_parquet():
@@ -147,6 +138,10 @@ def _ensure_local_parquet():
     Ensure the Foursquare parquet file exists locally.
     Downloads once from Hugging Face if not already present.
     """
+    # Paths
+    FSQ_LOCAL_FILE = "/Users/rckyi/Documents/Data/fsq_places.parquet"
+    FSQ_DATASET_META = "https://datasets-server.huggingface.co/parquet?dataset=foursquare/fsq-os-places"
+
     if os.path.exists(FSQ_LOCAL_FILE):
         return FSQ_LOCAL_FILE
 
@@ -169,14 +164,6 @@ def _ensure_local_parquet():
     print(f"✅ Saved FSQ parquet to {FSQ_LOCAL_FILE}")
     return FSQ_LOCAL_FILE
 
-
-# def _get_duckdb_connection():
-#     """Create and cache a DuckDB connection."""
-#     global _fsq_duckdb_con
-#     if _fsq_duckdb_con is None:
-#         con = duckdb.connect()
-#         _fsq_duckdb_con = con
-#     return _fsq_duckdb_con
 
 
 def get_fsq_count(lat, lon, r, _fsq_duckdb_con, _fsq_query_cache):
@@ -248,12 +235,9 @@ def build_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_qu
         pop = get_population_density_gee(lat_i, lon_i, cr)
         osm_poi = get_osm_poi_density(lat_i, lon_i, cr)
         fsq_poi = get_fsq_count(lat_i, lon_i, cr, _fsq_duckdb_con, _fsq_query_cache)
-        print(f'median income for latitude {lat_i}, longitude {lon_i}')
         income = get_median_income_by_point(lat_i, lon_i, cr, CENSUS_API_KEY)
         osm_cat = get_osm_category(lat, lon)
         fsq_cat = get_foursquare_category(lat, lon)
-        print(f'Category osm: {osm_cat}, fsq: {fsq_cat}')
-        # income = get_median_income_with_radius(lat, lon)
         features.append({
             "lat": lat_i,
             "lon": lon_i,

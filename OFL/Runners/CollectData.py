@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from OFL.Predictors.Predictors import build_features_for_location, generate_city_candidate_locations
-from OFL.Predictors.Categories import encode_location_categories
+from OFL.Helpers import _get_duckdb_connection
 from OFL.RevenueEstimation.RevenueEstimation import revenue_estimation
 from OFL.Runners.CollectRevenueData.CollectTaxValueDataNYC import batch_process_tax_value, query_point_tax_value
 import time
@@ -12,13 +12,7 @@ import ee
 _fsq_duckdb_con = None
 _fsq_query_cache = {}
 
-def _get_duckdb_connection():
-    """Create and cache a DuckDB connection."""
-    global _fsq_duckdb_con
-    if _fsq_duckdb_con is None:
-        con = duckdb.connect()
-        _fsq_duckdb_con = con
-    return _fsq_duckdb_con
+
 
 def build_train_vars(candidates
                      , radius_m
@@ -42,7 +36,6 @@ def build_train_vars(candidates
                                                , CENSUS_API_KEY)
             # Aggregate neighborhood features (mean as example)
             agg = X_df.mean(numeric_only=True).to_dict()
-            points = lat, lon
             print(f'Points for tax value {points}')
             agg["lat"], agg["lon"], agg["revenue"] = lat, lon, Y
             rows.append(agg)

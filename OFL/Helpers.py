@@ -34,6 +34,8 @@ ee.Initialize(project='ee-shaddie77')
 _geocode_cache = {}
 _pop_cache = {}
 
+
+
 # Helper: robust cached geocoding
 def get_nearest_place_coords(lat, lon):
     """
@@ -385,3 +387,12 @@ def get_fsq_count(lat, lon, r):
     """
     res = con.execute(query).df()
     return int(res['count'][0]) if res.shape[0] else 0
+
+
+def _get_duckdb_connection():
+    """Create and cache a DuckDB connection."""
+    global _fsq_duckdb_con
+    if _fsq_duckdb_con is None:
+        con = duckdb.connect()
+        _fsq_duckdb_con = con
+    return _fsq_duckdb_con

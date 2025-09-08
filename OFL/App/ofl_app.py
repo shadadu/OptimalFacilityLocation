@@ -2,33 +2,44 @@ import streamlit as st
 import requests
 import pandas as pd
 import joblib
-import numpy as np
 from geopy.geocoders import Nominatim
+import ee
+from OFL.Helpers import _get_duckdb_connection
+from OFL.Predictors.Predictors import generate_city_candidate_locations, build_features_for_location
 
 # -----------------------
 # CONFIG
 # -----------------------
-HF_MODEL_REPO = "username/revenue-predictor"  # Change to your HF repo
+HF_MODEL_REPO = "shaddie/revenue-predictor"
 HF_MODEL_FILENAME = "model.joblib"            # Model file inside repo
 
-# -----------------------
-# PLACEHOLDER FUNCTIONS
-# -----------------------
-def get_population_density_gee(lat, lon, radius_m):
-    """Placeholder: compute population density from Google Earth Engine."""
-    return np.random.uniform(1000, 10000)  # fake value
+ee.Authenticate()
+ee.Initialize(project='ee-shaddie77')
 
-def get_osm_poi_density(lat, lon, radius_m):
-    """Placeholder: compute POI density from OSM."""
-    return np.random.uniform(10, 500)  # fake value
+CENSUS_API_KEY = st.secrets.get("CENSUS_API_KEY", "")  # use streamlit secrets to store and retrieve api
 
-def get_median_income_by_point(lat, lon, radius_m):
-    """Placeholder: get median income from Census."""
-    return np.random.uniform(30000, 120000)  # fake value
+# ------------------------
+# PARAMETERS
+# ------------------------
+radius_m = 100  # Neighborhood radius
+cr = 10  # Subcircle radius
+radius_c = 50  # Candidate facility radius (for city split)
+location_name = "New York, NY"
 
-# -----------------------
-# UTIL
-# -----------------------
+# ------------------
+# CACHING
+# ---------------------
+# Global caches for Foursquare(HF + Duckdb)
+_fsq_query_cache = {}
+_fsq_duckdb_con = _get_duckdb_connection()
+
+# --- Parameters
+
+#
+candidates = generate_city_candidate_locations(location_name, radius_c)
+print(f'size of candidates {len(candidates)}')
+print(f'element of candidates {candidates[0]}')
+
 @st.cache_resource
 def load_model_from_hf():
     """Download model from Hugging Face Hub."""
@@ -46,6 +57,8 @@ def geocode(location_name):
     if loc is None:
         raise ValueError(f"Could not geocode location: {location_name}")
     return loc.latitude, loc.longitude
+
+
 
 # -----------------------
 # STREAMLIT UI
@@ -71,19 +84,40 @@ if submitted:
         st.stop()
 
     with st.spinner("Computing Predictors..."):
-        pop_density = get_population_density_gee(lat, lon, radius_m)
-        poi_density = get_osm_poi_density(lat, lon, radius_m)
-        median_income = get_median_income_by_point(lat, lon, radius_m)
+        X_df = build_features_for_location(lat, lon
+                                           , radius_m
+                                           , cr
+                                           , _fsq_duckdb_con
+                                           , _fsq_query_cache
+                                           , CENSUS_API_KEY)
 
-    st.session_state.locations.append({
-        "location": location_name,
-        "lat": lat,
-        "lon": lon,
-        "radius_m": radius_m,
-        "population_density": pop_density,
-        "poi_density": poi_density,
-        "median_income": median_income
-    })
+        """
+         features.append({
+                "lat": lat_i,
+                "lon": lon_i,
+                "population_density": pop,
+                "osm_poi_density": osm_poi,
+                "fsq_poi_count": fsq_poi,
+                "median_income": income,
+                "location_category_foursquare": fsq_cat,
+                "location_category_osm": osm_cat,
+            })
+        """
+        # Aggregate (by mean) neighborhood features; aggregated for each candidate location
+        agg = X_df.mean(numeric_only=True).to_dict()
+        st.session_state.locations.append(
+            {
+                "location": location_name,
+                "lat": lat,
+                "lon": lon,
+                "population_density": agg["population_density"],
+                "osm_poi_density": agg["osm_poi_density"],
+                "median_income": agg["median_income"]
+            }  # tbd: add categories data
+        )
+
+
+
 
 # --- Display locations in a table ---
 if st.session_state.locations:
@@ -97,7 +131,7 @@ if st.session_state.locations:
             model = load_model_from_hf()
 
         with st.spinner("Running inference..."):
-            feature_cols = ["population_density", "poi_density", "median_income"]
+            feature_cols = ["population_density", "poi_density", "median_income"] # tbd: update feature columns
             df["estimated_revenue"] = model.predict(df[feature_cols])
 
         st.subheader("💰 Revenue Estimates")
