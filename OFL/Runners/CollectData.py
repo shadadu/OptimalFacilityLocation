@@ -2,15 +2,14 @@ import streamlit as st
 import pandas as pd
 from OFL.Predictors.Predictors import build_features_for_location, generate_city_candidate_locations
 from OFL.Helpers import _get_duckdb_connection
-from OFL.RevenueEstimation.RevenueEstimation import revenue_estimation
 from OFL.Runners.CollectRevenueData.CollectTaxValueDataNYC import batch_process_tax_value, query_point_tax_value
 import time
-import duckdb
 import ee
 
 # Global caches for Foursquare(HF + Duckdb)
-_fsq_duckdb_con = None
-_fsq_query_cache = {}
+# global _fsq_duckdb_con
+# # _fsq_duckdb_con = None
+# _fsq_query_cache = {}
 
 
 
@@ -18,8 +17,9 @@ def build_train_vars(candidates
                      , radius_m
                      , cr
                      , CENSUS_API_KEY
-                     ):
-    _fsq_duckdb_con = _get_duckdb_connection()
+                     , _fsq_duckdb_con
+                     , _fsq_query_cache):
+
     rows = []
     cnt_ = 0
 
@@ -32,7 +32,8 @@ def build_train_vars(candidates
             print(f'revenue Y: {Y}')
             X_df = build_features_for_location(lat, lon,
                                                radius_m, cr,
-                                               _fsq_duckdb_con, _fsq_query_cache
+                                               _fsq_duckdb_con,
+                                               _fsq_query_cache
                                                , CENSUS_API_KEY)
             # Aggregate neighborhood features (mean as example)
             agg = X_df.mean(numeric_only=True).to_dict()
@@ -57,6 +58,9 @@ def main():
     Collects data from various Geolocation and demographics
      to build data set that is saved to csv for later model training
     """
+    global _fsq_duckdb_con
+    _fsq_duckdb_con = None
+    _fsq_query_cache = {}
     ee.Authenticate()
     ee.Initialize(project='ee-shaddie77')
 
@@ -78,8 +82,8 @@ def main():
     candidates = generate_city_candidate_locations(city_name, radius_c)
     print(f'size of candidates {len(candidates)}')
     print(f'element of candidates {candidates[0]}')
-
-    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY)
+    _fsq_duckdb_con = _get_duckdb_connection(_fsq_duckdb_con)
+    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY,_fsq_query_cache, _fsq_duckdb_con)
     build_df(rows, "/Users/rckyi/Documents/Data/ofl_data.csv")
 
 

@@ -230,9 +230,9 @@ def get_fips_from_coords(lat, lon, retries=3, wait=5):
         raise RuntimeError("Both FCC and Census Geocoder failed") from e
 
 
-def _get_duckdb_connection():
+def _get_duckdb_connection(_fsq_duckdb_con):
     """Create and cache a DuckDB connection."""
-    global _fsq_duckdb_con
+    # global _fsq_duckdb_con
     if _fsq_duckdb_con is None:
         con = duckdb.connect()
         _fsq_duckdb_con = con

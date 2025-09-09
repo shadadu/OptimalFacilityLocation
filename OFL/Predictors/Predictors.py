@@ -166,7 +166,7 @@ def _ensure_local_parquet():
 
 
 
-def get_fsq_count(lat, lon, r, _fsq_duckdb_con, _fsq_query_cache):
+def get_fsq_count(lat, lon, r,  _fsq_query_cache, _fsq_duckdb_con):
     """
     Count FSQ places within radius r (meters) of lat/lon.
     Uses local parquet + cache to avoid repeated requests.
