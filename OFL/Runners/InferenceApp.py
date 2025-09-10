@@ -3,6 +3,7 @@ import requests, certifi
 import hashlib
 import json
 import os
+import time
 import pandas as pd
 import joblib
 import ee
@@ -40,14 +41,11 @@ def main():
 
     # ------------------
     # CACHING
-    # ---------------------
-
-
-    # Simple on-disk cache file
+    # --------------------
     _GEOCODE_CACHE_FILE = "/Users/rckyi/Documents/Data/geocode_cache.json"
     _geocode_cache = {}
 
-    # Load cache if available
+    # Load geocode cache if available
     if os.path.exists(_GEOCODE_CACHE_FILE):
         try:
             with open(_GEOCODE_CACHE_FILE, "r") as f:
@@ -55,10 +53,8 @@ def main():
         except Exception:
             _geocode_cache = {}
 
-
-
     print(f'Connecting to Foursquare db: DuckDB + HF... ')
-    # _fsq_duckdb_con = None
+    # Foursquare caching
     _fsq_query_cache = {}
     _fsq_duckdb_con = None
     _fsq_duckdb_con = Helpers._get_duckdb_connection(_fsq_duckdb_con)
@@ -67,7 +63,6 @@ def main():
 
     # --- Parameters
 
-    #
     print(f'Getting candidates for the location')
     candidates = generate_city_candidate_locations(location_name, radius_c)
     print(f'size of candidates {len(candidates)}')
@@ -89,11 +84,12 @@ def main():
         with open(_GEOCODE_CACHE_FILE, "w") as f:
             json.dump(_geocode_cache, f)
 
-    def geocode_direct(geolocation_name, use_cache=True):
+    def geocode_direct(geolocation_name, use_cache=True, rate_limit=1.0):
         """
         Geocode a place name into (lat, lon).
         Uses direct Nominatim API via requests (with certifi).
         Caches results on disk to avoid repeated hits.
+        Respects a simple rate limit (default: 1 second).
         """
         key = hashlib.sha1(geolocation_name.strip().lower().encode()).hexdigest()
 
@@ -110,6 +106,10 @@ def main():
         headers = {"User-Agent": "revenue_estimator_app"}
 
         try:
+            # ✅ Rate limit: sleep before request
+            if rate_limit > 0:
+                time.sleep(rate_limit)
+
             resp = requests.get(url, params=params, headers=headers, verify=certifi.where(), timeout=10)
             resp.raise_for_status()
             results = resp.json()
