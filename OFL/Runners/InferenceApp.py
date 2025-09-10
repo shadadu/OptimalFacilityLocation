@@ -1,27 +1,34 @@
 import streamlit as st
-import requests
+import requests, certifi
+import hashlib
+import json
+import os
 import pandas as pd
 import joblib
-from geopy.geocoders import Nominatim
 import ee
 from OFL import Helpers
 from OFL.Runners.Inference import build_inference_features_for_location
-from OFL.Predictors.Predictors import generate_city_candidate_locations, build_features_for_location
-import sys
+from OFL.Predictors.Predictors import generate_city_candidate_locations
+
 
 # Global caches for Foursquare(HF + Duckdb)
 global _fsq_duckdb_con
 def main():
+    print(f'Starting the app... ')
     # -----------------------
     # CONFIG
     # -----------------------
     HF_MODEL_REPO = "shaddie/revenue-predictor"
     HF_MODEL_FILENAME = "model.joblib"  # Model file inside repo
 
-    ee.Authenticate()
-    ee.Initialize(project='ee-shaddie77')
 
     CENSUS_API_KEY = st.secrets.get("CENSUS_API_KEY", "")  # use streamlit secrets to store and retrieve api
+    print(f'Obtained Census Api key ...')
+
+    print(f'Setting up EE connection...')
+    ee.Authenticate()
+    ee.Initialize(project='ee-shaddie77')
+    print(f'Google EE con initialized ...')
 
     # ------------------------
     # PARAMETERS
@@ -35,17 +42,33 @@ def main():
     # CACHING
     # ---------------------
 
+
+    # Simple on-disk cache file
+    _GEOCODE_CACHE_FILE = "/Users/rckyi/Documents/Data/geocode_cache.json"
+    _geocode_cache = {}
+
+    # Load cache if available
+    if os.path.exists(_GEOCODE_CACHE_FILE):
+        try:
+            with open(_GEOCODE_CACHE_FILE, "r") as f:
+                _geocode_cache = json.load(f)
+        except Exception:
+            _geocode_cache = {}
+
+
+
+    print(f'Connecting to Foursquare db: DuckDB + HF... ')
     # _fsq_duckdb_con = None
     _fsq_query_cache = {}
-    ee.Authenticate()
-    ee.Initialize(project='ee-shaddie77')
-
     _fsq_duckdb_con = None
     _fsq_duckdb_con = Helpers._get_duckdb_connection(_fsq_duckdb_con)
+
+    print(f'Foursquare db con established ...')
 
     # --- Parameters
 
     #
+    print(f'Getting candidates for the location')
     candidates = generate_city_candidate_locations(location_name, radius_c)
     print(f'size of candidates {len(candidates)}')
     print(f'element of candidates {candidates[0]}')
@@ -61,12 +84,47 @@ def main():
         model_hf = joblib.load(HF_MODEL_FILENAME)
         return model_hf
 
-    def geocode(geolocation_name):
-        geolocator = Nominatim(user_agent="revenue_estimator_app")
-        loc = geolocator.geocode(geolocation_name, timeout=10)
-        if loc is None:
-            raise ValueError(f"Could not geocode location: {geolocation_name}")
-        return loc.latitude, loc.longitude
+    def _save_cache():
+        """Persist cache to disk"""
+        with open(_GEOCODE_CACHE_FILE, "w") as f:
+            json.dump(_geocode_cache, f)
+
+    def geocode_direct(geolocation_name, use_cache=True):
+        """
+        Geocode a place name into (lat, lon).
+        Uses direct Nominatim API via requests (with certifi).
+        Caches results on disk to avoid repeated hits.
+        """
+        key = hashlib.sha1(geolocation_name.strip().lower().encode()).hexdigest()
+
+        # ✅ Cache check
+        if use_cache and key in _geocode_cache:
+            return _geocode_cache[key]
+
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            "q": geolocation_name,
+            "format": "json",
+            "limit": 1
+        }
+        headers = {"User-Agent": "revenue_estimator_app"}
+
+        try:
+            resp = requests.get(url, params=params, headers=headers, verify=certifi.where(), timeout=10)
+            resp.raise_for_status()
+            results = resp.json()
+            if not results:
+                raise ValueError(f"Could not geocode location: {geolocation_name}")
+            latlon = (float(results[0]["lat"]), float(results[0]["lon"]))
+
+            # ✅ Cache result
+            if use_cache:
+                _geocode_cache[key] = latlon
+                _save_cache()
+
+            return latlon
+        except Exception as e:
+            raise RuntimeError(f"Geocoding failed for {geolocation_name}: {e}")
 
     # -----------------------
     # STREAMLIT UI
@@ -86,11 +144,12 @@ def main():
 
     if submitted:
         try:
-            lat, lon = geocode(location_name)
+            lat, lon = geocode_direct(location_name)
+            print(f'Geocoded lat, lon {lat}, {lon}')
         except Exception as e:
             st.error(f"Geocoding failed: {e}")
             st.stop()
-
+        print(f'compute predictors ...')
         with st.spinner("Computing Predictors..."):
             X_df = build_inference_features_for_location(lat, lon
                                                          , radius_m
@@ -98,25 +157,7 @@ def main():
                                                          , _fsq_duckdb_con
                                                          , _fsq_query_cache
                                                          , CENSUS_API_KEY)
-            # X_df = build_features_for_location(lat, lon
-            #                                    , radius_m
-            #                                    , cr
-            #                                    , _fsq_duckdb_con
-            #                                    , _fsq_query_cache
-            #                                    , CENSUS_API_KEY)
 
-            """
-             features.append({
-                    "lat": lat_i,
-                    "lon": lon_i,
-                    "population_density": pop,
-                    "osm_poi_density": osm_poi,
-                    "fsq_poi_count": fsq_poi,
-                    "median_income": income,
-                    "location_category_foursquare": fsq_cat,
-                    "location_category_osm": osm_cat,
-                })
-            """
             # Aggregate (by mean) neighborhood features; aggregated for each candidate location
             agg = X_df.mean(numeric_only=True).to_dict()
             st.session_state.locations.append(
@@ -124,6 +165,7 @@ def main():
                     "location": location_name,
                     "lat": lat,
                     "lon": lon,
+                    "radius": radius_m,
                     "population_density": agg["population_density"],
                     "osm_poi_density": agg["osm_poi_density"],
                     "median_income": agg["median_income"]
@@ -136,21 +178,21 @@ def main():
         st.subheader("📋 Added Locations")
         st.dataframe(df)
 
-        # --- Button to run inference ---
-        if st.button("Run inference"):
-            with st.spinner("Loading pretrained model..."):
-                model = load_model_from_hf()
+    # --- Button to run inference ---
+    if st.button("Run inference"):
+        with st.spinner("Loading pretrained model..."):
+            model = load_model_from_hf()
 
-            with st.spinner("Running inference..."):
-                feature_cols = ["population_density", "poi_density", "median_income"]  # tbd: update feature columns
-                df["estimated_revenue"] = model.predict(df[feature_cols])
+        with st.spinner("Running inference..."):
+            feature_cols = ["population_density", "poi_density", "median_income"]  # tbd: update feature columns
+            df["estimated_revenue"] = model.predict(df[feature_cols])
 
-            st.subheader("💰 Revenue Estimates")
-            st.dataframe(df[["location", "population_density", "poi_density", "median_income", "estimated_revenue"]])
+        st.subheader("💰 Revenue Estimates")
+        st.dataframe(df[["location", "population_density", "poi_density", "median_income", "estimated_revenue"]])
 
-        # Optional: clear button
-        if st.button("Clear all locations"):
-            st.session_state.locations.clear()
+    # Optional: clear button
+    if st.button("Clear all locations"):
+        st.session_state.locations.clear()
 
 
 # Call the main function

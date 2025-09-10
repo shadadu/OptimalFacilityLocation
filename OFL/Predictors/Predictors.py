@@ -30,7 +30,6 @@ def generate_city_candidate_locations(location_name, radius_c):
             # Create a Shapely Point object
             p = Point(lon, lat)
             if city_poly.contains(p):
-                print(f'city limits contains l')
                 candidates.append((lat, lon))
         # print(f'current count of generate city loop: {count}')
         count += 1
