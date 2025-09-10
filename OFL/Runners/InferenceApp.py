@@ -11,9 +11,10 @@ from OFL import Helpers
 from OFL.Runners.Inference import build_inference_features_for_location
 from OFL.Predictors.Predictors import generate_city_candidate_locations
 
-
 # Global caches for Foursquare(HF + Duckdb)
 global _fsq_duckdb_con
+
+
 def main():
     print(f'Starting the app... ')
     # -----------------------
@@ -21,7 +22,6 @@ def main():
     # -----------------------
     HF_MODEL_REPO = "shaddie/revenue-predictor"
     HF_MODEL_FILENAME = "model.joblib"  # Model file inside repo
-
 
     CENSUS_API_KEY = st.secrets.get("CENSUS_API_KEY", "")  # use streamlit secrets to store and retrieve api
     print(f'Obtained Census Api key ...')

@@ -1,6 +1,5 @@
 import requests
 import time
-from functools import lru_cache
 
 # --- Global caches (dict-based for flexibility) ---
 _census_cache = {}

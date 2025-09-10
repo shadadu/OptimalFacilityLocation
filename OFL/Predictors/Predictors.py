@@ -1,6 +1,6 @@
 import numpy as np
 from OFL.Predictors.Categories import get_osm_category, get_foursquare_category
-from OFL.Helpers import get_osm_poi_density, get_population_density_gee, get_fips_from_coords, snap_to_nearest_town
+from OFL import Helpers
 import osmnx as ox
 import pandas as pd
 from shapely.geometry import Point
@@ -44,7 +44,7 @@ def get_median_income_by_point(lat, lon, radius, CENSUS_API_KEY):
     if not CENSUS_API_KEY:
         raise RuntimeError("CENSUS_API_KEY is not set. Put your key in Streamlit secrets or set variable.")
     # FCC to get block FIPS
-    j = get_fips_from_coords(lat, lon, retries=3, wait=5)
+    j = Helpers.get_fips_from_coords(lat, lon, retries=3, wait=5)
     block_fips = j.get("Block", {}).get("FIPS")
     if not block_fips:
         return None
@@ -218,7 +218,7 @@ def category_with_fallback(lat, lon, fetch_fn, radii=[200, 500, 1000, 2000], del
         time.sleep(delay)
 
     # Snap to nearest town & retry once
-    town_lat, town_lon = snap_to_nearest_town(lat, lon)
+    town_lat, town_lon = Helpers.snap_to_nearest_town(lat, lon)
     if (town_lat, town_lon) != (lat, lon):
         return category_with_fallback(town_lat, town_lon, fetch_fn, radii, delay)
 
@@ -228,11 +228,10 @@ def category_with_fallback(lat, lon, fetch_fn, radii=[200, 500, 1000, 2000], del
 def build_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_query_cache, CENSUS_API_KEY):
     print(f'Building features for location ...')
     neighborhood_points = generate_circle_points(lat, lon, radius_m, cr)
-    print(f'Number of neighborhood points {len(neighborhood_points)}')
     features = []
     for (lat_i, lon_i) in neighborhood_points:
-        pop = get_population_density_gee(lat_i, lon_i, cr)
-        osm_poi = get_osm_poi_density(lat_i, lon_i, cr)
+        pop = Helpers.get_population_density_gee(lat_i, lon_i, cr)
+        osm_poi = Helpers.get_osm_poi_density(lat_i, lon_i, cr)
         fsq_poi = get_fsq_count(lat_i, lon_i, cr, _fsq_duckdb_con, _fsq_query_cache)
         income = get_median_income_by_point(lat_i, lon_i, cr, CENSUS_API_KEY)
         osm_cat = get_osm_category(lat, lon)
@@ -247,6 +246,7 @@ def build_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_qu
             "location_category_foursquare": fsq_cat,
             "location_category_osm": osm_cat,
         })
+    print(f'Building location features complete')
     return pd.DataFrame(features)
 
 
