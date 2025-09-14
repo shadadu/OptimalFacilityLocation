@@ -38,7 +38,7 @@ def build_train_vars(candidates
             # Aggregate neighborhood features (mean as example)
             agg = X_df.mean(numeric_only=True).to_dict()
             print(f'Points for tax value {points}')
-            agg["lat"], agg["lon"], agg["revenue"] = lat, lon, Y
+            agg["lat"], agg["lon"], agg["revenue"] = lat, lon, Y["assesstot"]
             rows.append(agg)
         cnt_ += 1
 
@@ -46,9 +46,9 @@ def build_train_vars(candidates
     return rows
 
 
-def build_df(rows, file_path=""):
+def build_df(rows, dir_path=""):
     df = pd.DataFrame(rows)
-    df.to_csv(file_path + 'location_revenue_and_predictors.csv', index=False)
+    df.to_csv(dir_path + 'location_revenue_and_predictors.csv', index=False)
     print(f'Successfully downloaded dataset to specified location')
     pass
 
@@ -84,7 +84,7 @@ def main():
     print(f'element of candidates {candidates[0]}')
     _fsq_duckdb_con = _get_duckdb_connection(_fsq_duckdb_con)
     rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY,_fsq_query_cache, _fsq_duckdb_con)
-    build_df(rows, "/Users/rckyi/Documents/Data/ofl_data.csv")
+    build_df(rows, "/Users/rckyi/Documents/Data/")
 
 
 if __name__ == "__main__":
