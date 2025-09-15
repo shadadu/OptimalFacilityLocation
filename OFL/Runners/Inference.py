@@ -1,5 +1,6 @@
 from OFL.Predictors.Categories import get_osm_category, get_foursquare_category
 from OFL.Predictors import Predictors
+from OFL.Predictors.Categories import encode_location_categories
 from OFL import Helpers
 import pandas as pd
 
@@ -26,4 +27,15 @@ def build_inference_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_co
             "location_category_osm": osm_cat,
         })
 
-    return pd.DataFrame(features)
+    df = pd.DataFrame(features)
+
+    df_vars = encode_location_categories(df)
+    # Predictors/Features:
+    X = df_vars[["population_density"
+        , "osm_poi_density"
+        , "fsq_poi_count"
+        , "median_income"
+        , "fsq_category_encoded"
+        , "osm_category_encoded"]]
+
+    return X
