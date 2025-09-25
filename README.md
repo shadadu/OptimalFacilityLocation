@@ -29,6 +29,7 @@ the best location as that with the best predicted revenue.
 # Running the project
 
 - To run the app, cd to OptimalFacilityLocation folder and run "python -m streamlit run OFL/Runners/InferenceApp.py"
+- Run Data collection(CollectData.py) and model training(Train.py) in the "Run Configurations" menu of your favorite IDE (for instance PyCharm)
 
 
 # References and Literature Review
