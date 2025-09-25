@@ -1,5 +1,6 @@
 import numpy as np
 from OFL.Predictors.Categories import get_osm_category, get_foursquare_category
+from OFL.Predictors import FoursquareQuery
 from OFL import Helpers
 import osmnx as ox
 import pandas as pd
@@ -165,39 +166,38 @@ def _ensure_local_parquet():
 
 
 
-def get_fsq_count(lat, lon, r,  _fsq_query_cache, _fsq_duckdb_con):
-    """
-    Count FSQ places within radius r (meters) of lat/lon.
-    Uses local parquet + cache to avoid repeated requests.
-    """
-    # Cache key
-    key = hashlib.md5(f"{lat:.6f}_{lon:.6f}_{r}".encode()).hexdigest()
-    if key in _fsq_query_cache:
-        return _fsq_query_cache[key]
-
-    print("Getting Foursquare Count")
-
-    local_file = _ensure_local_parquet()
-    con = _fsq_duckdb_con
-    # con = _get_duckdb_connection()
-
-    # Convert radius meters to degrees (approx)
-    deg = r / 111_320
-    min_lat, max_lat = lat - deg, lat + deg
-    min_lon, max_lon = lon - deg, lon + deg
-
-    query = f"""
-    SELECT COUNT(*) as count
-    FROM read_parquet('{local_file}')
-    WHERE latitude BETWEEN {min_lat} AND {max_lat}
-      AND longitude BETWEEN {min_lon} AND {max_lon}
-    """
-
-    res = con.execute(query).fetchdf()
-    count = int(res['count'][0]) if res.shape[0] else 0
-
-    _fsq_query_cache[key] = count
-    return count
+# def get_fsq_count(lat, lon, r,  _fsq_query_cache, _fsq_duckdb_con):
+#     """
+#     Count FSQ places within radius r (meters) of lat/lon.
+#     Uses local parquet + cache to avoid repeated requests.
+#     """
+#     # Cache key
+#     key = hashlib.md5(f"{lat:.6f}_{lon:.6f}_{r}".encode()).hexdigest()
+#     if key in _fsq_query_cache:
+#         return _fsq_query_cache[key]
+#
+#     print("Getting Foursquare Count")
+#
+#     local_file = _ensure_local_parquet()
+#
+#     # Convert radius meters to degrees (approx)
+#     deg = r / 111_320
+#     min_lat, max_lat = lat - deg, lat + deg
+#     min_lon, max_lon = lon - deg, lon + deg
+#
+#     query = f"""
+#     SELECT COUNT(*) as count
+#     FROM read_parquet('{local_file}')
+#     WHERE latitude BETWEEN {min_lat} AND {max_lat}
+#       AND longitude BETWEEN {min_lon} AND {max_lon}
+#     """
+#
+#     res = _fsq_duckdb_con.execute(query).fetchdf()
+#     print(f'fsq count res {res}')
+#     count = int(res['count'][0]) if res.shape[0] else 0
+#
+#     _fsq_query_cache[key] = count
+#     return count
 
 
 
@@ -232,7 +232,7 @@ def build_features_for_location(lat, lon, radius_m, cr, _fsq_duckdb_con, _fsq_qu
     for (lat_i, lon_i) in neighborhood_points:
         pop = Helpers.get_population_density_gee(lat_i, lon_i, cr)
         osm_poi = Helpers.get_osm_poi_density(lat_i, lon_i, cr)
-        fsq_poi = get_fsq_count(lat_i, lon_i, cr, _fsq_duckdb_con, _fsq_query_cache)
+        fsq_poi = FoursquareQuery.get_fsq_count(lat_i, lon_i, cr, _fsq_duckdb_con, _fsq_query_cache)
         income = get_median_income_by_point(lat_i, lon_i, cr, CENSUS_API_KEY)
         osm_cat = get_osm_category(lat, lon)
         fsq_cat = get_foursquare_category(lat, lon)

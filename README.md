@@ -26,8 +26,12 @@ we can achieve this prediction by also devising a regression model where these f
 for each location. Then, given a list of candidate locations, we can simply run inference on the trained model and select
 the best location as that with the best predicted revenue.
 
+# Running the project
 
-# References andLiterature Review
+- To run the app, cd to OptimalFacilityLocation folder and run "python -m streamlit run OFL/Runners/InferenceApp.py"
+
+
+# References and Literature Review
 
 Quite a bit of research has been conducted on optimal shop location. We would expect most big retailers to have even more 
 detailed and comprehensive models and data sets for their research and decision making. Here, we list some of the research 

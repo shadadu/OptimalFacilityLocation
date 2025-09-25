@@ -2,15 +2,9 @@ import streamlit as st
 import pandas as pd
 from OFL.Predictors.Predictors import build_features_for_location, generate_city_candidate_locations
 from OFL.Helpers import _get_duckdb_connection
-from OFL.Runners.CollectRevenueData.CollectTaxValueDataNYC import batch_process_tax_value, query_point_tax_value
+from OFL.Runners.CollectRevenueData.CollectTaxValueDataNYC import query_point_tax_value
 import time
 import ee
-
-# Global caches for Foursquare(HF + Duckdb)
-# global _fsq_duckdb_con
-# # _fsq_duckdb_con = None
-# _fsq_query_cache = {}
-
 
 
 def build_train_vars(candidates
@@ -83,7 +77,7 @@ def main():
     print(f'size of candidates {len(candidates)}')
     print(f'element of candidates {candidates[0]}')
     _fsq_duckdb_con = _get_duckdb_connection(_fsq_duckdb_con)
-    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY,_fsq_query_cache, _fsq_duckdb_con)
+    rows = build_train_vars(candidates, radius_m, cr, CENSUS_API_KEY, _fsq_duckdb_con, _fsq_query_cache)
     build_df(rows, "/Users/rckyi/Documents/Data/")
 
 
